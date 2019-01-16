@@ -1,59 +1,81 @@
 #include "TimerOne.h"
 #include "ServoTimer2.h"
 
-#define SERVO_N 3
+class PulseMeasure {
+  public:
+    PulseMeasure(byte _meas_pin) {
+      meas_pin = _meas_pin;
+      pinMode(meas_pin, INPUT);
 
-byte servo_pins = 2;
-byte meas_pins = 5;
-int pulse_width;
+      level = LOW;
+      level_old = LOW;
+      start_time = 0;
+      width = 0;
+    }
 
+    void CyclicHandler() {
+      level = digitalRead(meas_pin);
+
+      if (level_old != level) {
+        if (level == HIGH) {
+          start_time = micros();
+        } else {
+          width = micros() - start_time;
+        }
+      }
+      level_old = level;
+    }
+
+    unsigned long GetWidth() {
+      return  width;
+    }
+
+    byte meas_pin;
+    bool level;
+    bool level_old;
+    unsigned long  start_time;
+    unsigned long  width;
+};
+
+PulseMeasure meas[] = {3, 4, 5, 6, 7, 8, 9, 10};
 ServoTimer2 servo;
-unsigned long  width;
 
 void timerFire() {
-  static bool level_old = LOW;
-  static unsigned long  start_time = 0;
-  bool level = digitalRead(meas_pins);
-
-  if (level_old != level) {
-    if (level == HIGH) {
-      //      Serial.println("rise");
-      start_time = micros();
-    } else {
-      //      Serial.println("fall");
-      width = micros() - start_time;
-    }
+  for (int i = 0; i < sizeof(meas) / sizeof(meas[0]); i++) {
+    meas[i].CyclicHandler();
   }
-  level_old = level;
 }
 
 void setup() {
-  Timer1.initialize(50);
+  Timer1.initialize(80);
   Timer1.attachInterrupt(timerFire);
   Serial.begin(9600);
 
-  servo.attach(servo_pins);
-  pinMode(meas_pins, INPUT);
+  servo.attach(2);
 }
 
 int incPulse(int val, int inc) {
-  if ( val + inc  > 2400 )
-    return 500 ;
+  if ( val + inc  > 2000 )
+    return 1000 ;
   else
     return val + inc;
 }
 
 void loop() {
-  static int pulse = 500;
+  static int pulse = 1000;
+
   servo.write(pulse);
   delay(1000);
 
   Serial.print("Servo:");
   Serial.print(pulse);
   Serial.print("\tMeasure:");
-  Serial.print(width);
+  for (int i = 0; i < sizeof(meas) / sizeof(meas[0]); i++) {
+    Serial.print(meas[i].GetWidth());
+    Serial.print("/");
+  }
   Serial.println("");
 
-  pulse = incPulse(pulse, 100);
+  pulse = incPulse(pulse, 200);
 }
 
